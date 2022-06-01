@@ -1,5 +1,6 @@
 import 'package:sample/root/app_event.dart';
 import 'package:sample/root/domain/calculator/calculator.dart';
+import 'package:sample/root/domain/calculator/calculator_input.dart';
 import 'package:sample/root/domain/storagereader/storage_reader.dart';
 import 'package:sample/utils/void_event.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,19 +16,6 @@ class Domain extends ParentMachine<AppEvent, AppEvent> {
 
   @override
   Machine<AppEvent, AppEvent> child() {
-    Machine<DomainInput, DomainOutput> getCalculator(int value) {
-      return Calculator(value).outward((int output) {
-        return Ward<DomainOutput>.single(DomainOutput.fromCalculator(output));
-      }).inward((DomainInput input) {
-        final int? fromReader = input.fromReader;
-        if (fromReader != null) {
-          return Ward<VoidEvent>.ignore();
-        } else {
-          return Ward<VoidEvent>.single(VoidEvent());
-        }
-      });
-    }
-
     final Machine<DomainInput, DomainOutput> reader =
         StorageReader(_prefs).outward((int output) {
       return Ward<DomainOutput>.single(DomainOutput.fromReader(output));
@@ -35,23 +23,24 @@ class Domain extends ParentMachine<AppEvent, AppEvent> {
       return Ward<VoidEvent>.ignore();
     });
 
-    final Machine<DomainInput, DomainOutput> connectable =
-        ConnectableMachine.create<DomainInput, DomainOutput,
-            BasicConnection<DomainInput, DomainOutput>>(
-      BasicConnection<DomainInput, DomainOutput>({reader}),
-      (BasicConnection<DomainInput, DomainOutput> state, DomainInput input) {
-        final int? fromReader = input.fromReader;
-        if (fromReader != null) {
-          return ConnectionType<DomainInput, DomainOutput,
-                  BasicConnection<DomainInput, DomainOutput>>.reduce(
-              BasicConnection<DomainInput, DomainOutput>(
-                  {getCalculator(fromReader)}));
-        } else {
-          return ConnectionType<DomainInput, DomainOutput,
-              BasicConnection<DomainInput, DomainOutput>>.inward();
-        }
-      },
-    ).redirect((DomainOutput output) {
+    final Machine<DomainInput, DomainOutput> calculator =
+        Calculator().outward((int output) {
+      return Ward<DomainOutput>.single(DomainOutput.fromCalculator(output));
+    }).inward((DomainInput input) {
+      final int? fromReader = input.fromReader;
+      if (fromReader != null) {
+        return Ward<CalculatorInput>.single(
+          CalculatorInput.initialize(fromReader),
+        );
+      } else {
+        return Ward<CalculatorInput>.single(CalculatorInput.increment());
+      }
+    });
+
+    final Machine<DomainInput, DomainOutput> connectable = merge({
+      reader,
+      calculator,
+    }).redirect((DomainOutput output) {
       if (output.isFromReader) {
         return Direction<DomainInput>.back(
           Ward<DomainInput>.single(

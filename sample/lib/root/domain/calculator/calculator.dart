@@ -1,16 +1,28 @@
-import 'package:sample/utils/void_event.dart';
 import 'package:simprokmachine/simprokmachine.dart';
 
-class Calculator extends ChildMachine<VoidEvent, int> {
-  int _counter;
+import 'calculator_input.dart';
 
-  Calculator(this._counter);
+class Calculator extends ChildMachine<CalculatorInput, int> {
+  int? _counter;
 
   @override
-  void process(VoidEvent? input, Handler<int> callback) {
+  void process(CalculatorInput? input, Handler<int> callback) {
     if (input != null) {
-      _counter += 1;
+      final int? value = input.value;
+      if (value != null) {
+        // initialize
+        _counter = value;
+      } else {
+        // increment
+        final int? unwrapped = _counter;
+        if (unwrapped != null) {
+          _counter = unwrapped + 1;
+        }
+      }
+      final int? unwrapped = _counter;
+      if (unwrapped != null) {
+        callback(unwrapped);
+      }
     }
-    callback(_counter);
   }
 }
