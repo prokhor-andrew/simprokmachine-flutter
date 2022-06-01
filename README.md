@@ -1,6 +1,5 @@
 # simprokmachine
 
-
 ## Introduction
  
 Every application consists of the classes that refer to the other classes, which refer to the other classes etc. It is a tree of classes where each one knows about its children and doesn't know about its parent.
@@ -61,7 +60,6 @@ To start the flow use ```runRootMachine()``` method in your ```main()``` functio
 
 ```Dart
 void main() {
-
     runRootMachine<String, bool>(
         root: PrinterWidgetMachine(),
     );
@@ -85,35 +83,10 @@ class EmittingMachine extends ChildMachine<String, bool> {
 }
 ```
 
-Standard implementations of ```ChildMachine``` are ```BasicMachine``` and ```ProcessMachine```.
-
-```Dart
-final machine = BasicMachine<int, bool>((int? input, Handler<bool> callback) {
-    // handle input here
-    // emit outuput if needed
-});
-```
-
-and
-
-```Dart
-final machine = ProcessMachine<int, bool>(this, (thisObject, int? input, bool callback) { 
-    // handle input here
-    // emit outuput if needed
-});
-```
-
-And there is also an implementation of ```BasicWidgetMachine``` if you want to inject your widget without extra classes.
-
-```Dart
-final machine = BasicWidgetMachine<int, bool>(child: MyAppWidget());
-```
-
 To unite two or more machines where one machine is ```WidgetMachine``` and another one is plain ```Machine``` use ```mergeWidgetMachine()```.
 
 ```Dart
 void main() {
-
     runRootMachine<String, bool>(
         root: mergeWidgetMachine(
           main: PrinterWidgetMachine(),
@@ -211,7 +184,7 @@ Add the line into pubspec.yaml:
 
 ```
 dependencies:
-    simprokmachine: ^1.1.1
+    simprokmachine: ^1.1.2
 ```
 
 Now in your Dart code, you can use:

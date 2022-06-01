@@ -1,6 +1,6 @@
 name: simprokmachine
 description: A framework for automation of inter-class communication in a declarative style.
-version: 1.1.1
+version: 1.1.2
 homepage: https://github.com/simprok-dev/simprokmachine-flutter
 documentation: https://github.com/simprok-dev/simprokmachine-flutter/wiki
 

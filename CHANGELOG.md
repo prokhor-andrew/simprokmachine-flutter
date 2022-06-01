@@ -1,3 +1,4 @@
-## 1.1.1
+## 1.1.2
 
-Initial publication. No changes so far.
+Removed BasicMachine, BasicWidgetMachine, ProcessMachine into simproktools.
+Added RootMachine.

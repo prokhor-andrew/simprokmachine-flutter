@@ -13,69 +13,26 @@ import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:rxdart/rxdart.dart';
 
+// internal types
 
-// extensions
+class _BasicMachine<Input, Output> extends ChildMachine<Input, Output> {
+  final BiHandler<Input?, Handler<Output>> _processor;
 
-extension _MapCopyAdd<Key, Value> on Map<Key, Value> {
-  Map<Key, Value> copyAdd(Key key, Value value) {
-    final Map<Key, Value> copied = map((key, value) => MapEntry(key, value));
-    copied[key] = value;
-    return copied;
+  _BasicMachine({
+    required BiHandler<Input?, Handler<Output>> processor,
+  }) : _processor = processor;
+
+  @override
+  void process(Input? input, Handler<Output> callback) {
+    _processor(input, callback);
   }
 }
 
-// internal types
 class _MachineSetup<Input, Output> {
   final Stream<Output> stream;
   final Handler<Input> setter;
 
   _MachineSetup(this.stream, this.setter);
-}
-
-class _EmitterInput<T> {
-  final T value;
-
-  _EmitterInput(this.value);
-}
-
-class _EmitterOutput<Input, Output> {
-  final Input? _input;
-  final Output? _output;
-
-  _EmitterOutput.toConnected(Input input)
-      : _input = input,
-        _output = null;
-
-  _EmitterOutput.fromConnected(Output output)
-      : _input = null,
-        _output = output;
-}
-
-class _EmitterMachine<Input, Output>
-    extends ChildMachine<_EmitterInput<Input>, _EmitterOutput<Input, Output>> {
-  Handler<_EmitterOutput<Input, Output>>? _callback;
-
-  void send(Input input) {
-    final callback = _callback;
-    if (callback != null) {
-      callback(_EmitterOutput.toConnected(input));
-    }
-  }
-
-  @override
-  void process(
-      _EmitterInput<Input>? input,
-      Handler<_EmitterOutput<Input, Output>> callback,
-      ) {
-    _callback = callback;
-  }
-}
-
-class _ConnectablePair<Input, Output> {
-  final StreamSubscription<Output> subscription;
-  final _EmitterMachine<Input, Output> emitter;
-
-  _ConnectablePair(this.subscription, this.emitter);
 }
 
 class _ProcessItem<Input, Output> {
@@ -367,19 +324,19 @@ class _RootWidget<Input, Output> extends StatefulWidget {
 
 class _RootWidgetState<Input, Output>
     extends State<_RootWidget<Input, Output>> {
-  StreamSubscription<Output>? subscription;
+  RootMachine<Input, Output>? _root;
 
   @override
   void initState() {
-    subscription = _start<Input, Output>(widget._machine);
-
+    _root = RootMachine(widget._machine);
+    _root?.start();
     super.initState();
   }
 
   @override
   void dispose() {
-    subscription?.cancel();
-    subscription = null;
+    _root?.stop();
+    _root = null;
     super.dispose();
   }
 
@@ -413,7 +370,6 @@ abstract class Machine<Input, Output> {
 /// An abstract class that describes a machine with a customizable handling of input,
 /// and emitting of output.
 abstract class ChildMachine<Input, Output> extends Machine<Input, Output> {
-
   /// Triggered after the subscription to the machine and every time input is received.
   /// [input] - a received input. `null` if triggered after subscription.
   /// [callback] - a callback used for emitting output.
@@ -453,202 +409,12 @@ abstract class ChildMachine<Input, Output> extends Machine<Input, Output> {
 /// An abstract class that describes an intermediate machine that passes input
 /// from its parent to the child, and its output from the child to the parent.
 abstract class ParentMachine<Input, Output> extends Machine<Input, Output> {
-
   /// A child machine that receives input that comes from the parent machine, and emits output.
   Machine<Input, Output> child();
 
   @override
   _MachineSetup<Input, Output> _setup() {
     return child()._setup();
-  }
-}
-
-/// A class that describes a machine with an injectable processing behavior.
-class BasicMachine<Input, Output> extends ChildMachine<Input, Output> {
-  final BiHandler<Input?, Handler<Output>> _processor;
-
-  /// parameter [processor] - triggered when `process()` method is triggered.
-  BasicMachine({
-    required BiHandler<Input?, Handler<Output>> processor,
-  }) : _processor = processor;
-
-  /// `ChildMachine` abstract method
-  @override
-  void process(Input? input, Handler<Output> callback) {
-    _processor(input, callback);
-  }
-}
-
-/// A class that describes a machine with an injectable processing behavior over
-/// the injected object. Exists for convenience.
-class ProcessMachine<Input, Output> extends ChildMachine<Input, Output> {
-  final BiHandler<Input?, Handler<Output>> processor;
-
-  ProcessMachine._(this.processor);
-
-  /// parameter [object] - object that is passed into
-  /// the injected `processor()` function.
-  /// parameter [processor] - triggered when `process()` method is triggered
-  /// with an injected `object` passed in as the first parameter.
-  static ProcessMachine<Input, Output> create<O, Input, Output>({
-    required O object,
-    required TriHandler<O, Input?, Handler<Output>> processor,
-  }) {
-    return ProcessMachine._(
-      (input, callback) => processor(object, input, callback),
-    );
-  }
-
-  /// `ChildMachine` abstract method
-  @override
-  void process(Input? input, Handler<Output> callback) {
-    processor(input, callback);
-  }
-}
-
-/// An object that represents state in `ConnectableMachine`'s reducer
-abstract class Connection<Input, Output> {
-  /// Machines that are connected in `ConnectableMachine`.
-  Set<Machine<Input, Output>> machines();
-}
-
-/// Basic implementation of `Connection` class
-class BasicConnection<Input, Output> extends Connection<Input, Output> {
-  /// `Connection` class property
-  final Set<Machine<Input, Output>> set;
-
-  BasicConnection(this.set);
-
-  /// `Connection` class method
-  @override
-  Set<Machine<Input, Output>> machines() {
-    return set;
-  }
-}
-
-/// A type that represents a behavior of `ConnectableMachine`
-class ConnectionType<Input, Output, C extends Connection<Input, Output>> {
-  final C? _connection;
-
-  /// Returning this value from `ConnectableMachine`'s `reducer` method
-  /// ensures that `machines` specified in the object of `C extends Connection`
-  /// type will be connected and all of them will receive subscription event.
-  ConnectionType.reduce(C connection) : _connection = connection;
-
-  /// Returning this value from `ConnectableMachine`'s `reducer` method ensures
-  /// that `machines` currently being connected will receive an input
-  /// object of `(C extends Connection).Input` type.
-  ConnectionType.inward() : _connection = null;
-}
-
-/// The machine for dynamic creation and connection of other machines
-class ConnectableMachine<Input, Output, C extends Connection<Input, Output>>
-    extends ChildMachine<Input, Output> {
-  Map<int, _ConnectablePair<Input, Output>> _map = {};
-  C _state;
-  final BiMapper<C, Input, ConnectionType<Input, Output, C>> _reducer;
-
-  ConnectableMachine._(this._state, this._reducer);
-
-  /// `ChildMachine` class method
-  @override
-  void process(Input? input, Handler<Output> callback) {
-    if (input != null) {
-      final connection = _reducer(_state, input)._connection;
-      if (connection != null) {
-        // reduce
-        _state = connection;
-        _connect(callback);
-      } else {
-        // inward
-        _send(input);
-      }
-    } else {
-      _connect(callback);
-    }
-  }
-
-  void _connect(Handler<Output> callback) {
-    _map = _state.machines().fold({}, (cur, machine) {
-      final int id = machine.hashCode;
-      if (cur[id] != null) {
-        return cur;
-      } else {
-        final item = _map[id];
-        if (item != null) {
-          return cur.copyAdd(id, item);
-        } else {
-          final _EmitterMachine<Input, Output> emitter = _EmitterMachine();
-
-          final Machine<Input, _EmitterOutput<Input, Output>> m0 =
-              machine.outward((Output output) {
-            return Ward.single(
-              _EmitterOutput<Input, Output>.fromConnected(output),
-            );
-          });
-
-          final Machine<_EmitterInput<Input>, _EmitterOutput<Input, Output>>
-              m1 = m0.inward((_EmitterInput<Input> input) {
-            return Ward.single(input.value);
-          });
-
-          final Machine<_EmitterInput<Input>, _EmitterOutput<Input, Output>>
-              merged = merge({emitter, m1});
-
-          final Machine<_EmitterInput<Input>, _EmitterOutput<Input, Output>>
-              merged1 = merged.redirect((_EmitterOutput<Input, Output> output) {
-            final input = output._input;
-            if (input != null) {
-              return Direction<_EmitterInput<Input>>.back(
-                Ward<_EmitterInput<Input>>.single(
-                  _EmitterInput<Input>(input),
-                ),
-              );
-            } else {
-              return Direction<_EmitterInput<Input>>.prop();
-            }
-          });
-
-          final Machine<_EmitterInput<Input>, Output> merged2 =
-              merged1.outward((_EmitterOutput<Input, Output> item) {
-            final output = item._output;
-            if (output != null) {
-              return Ward<Output>.single(output);
-            } else {
-              return Ward<Output>.ignore();
-            }
-          });
-
-          final StreamSubscription<Output> subscription =
-              merged2._setup().stream.listen(callback);
-
-          return cur.copyAdd(id, _ConnectablePair(subscription, emitter));
-        }
-      }
-    });
-  }
-
-  void _send(Input input) {
-    _map.forEach((_, value) {
-      value.emitter.send(input);
-    });
-  }
-
-  /// parameter [initial] - initial state. After subscription to the
-  /// `ConnectableMachine` all the `machines` in `initial` object will be
-  /// connected and subscribed to.
-  /// parameter [reducer] - reducer method that is triggered every time input
-  /// is received by `ConnectableMachine`.
-  /// Accepts current state, incoming input and returns an object of
-  /// `ConnectionType<C>` type.
-  /// Either new `machines` are connected to the `ConnectableMachine` or
-  /// current `machines` receive input, depending on the returned value.
-  static ConnectableMachine<Input, Output, C>
-      create<Input, Output, C extends Connection<Input, Output>>(
-    C initial,
-    BiMapper<C, Input, ConnectionType<Input, Output, C>> reducer,
-  ) {
-    return ConnectableMachine._(initial, reducer);
   }
 }
 
@@ -676,7 +442,7 @@ abstract class ChildWidgetMachine<Input, Output>
 
   @override
   Machine<Input, Output> _machine() {
-    return BasicMachine(processor: (input, callback) {
+    return _BasicMachine(processor: (input, callback) {
       _uiSubject.sink.add(_ProcessItem(
         input: input,
         callback: (output) => callback(output),
@@ -715,26 +481,10 @@ abstract class ParentWidgetMachine<Input, Output>
   }
 }
 
-/// A class that describes a widget machine with an injectable child widget.
-class BasicWidgetMachine<Input, Output>
-    extends ChildWidgetMachine<Input, Output> {
-  final Widget _child;
-
-  /// A [widget] that is returned from `Widget.child()`.
-  BasicWidgetMachine({required Widget child}) : _child = child;
-
-  /// Returns injected child widget.
-  @override
-  Widget child() {
-    return _child;
-  }
-}
-
 // extensions
 
 extension InwardMachineExtension<ChildInput, ChildOutput>
     on Machine<ChildInput, ChildOutput> {
-
   /// Creates a `Machine` instance with a specific behavior applied.
   /// Every input of the resulting machine is mapped into an array of new
   /// inputs and passed to the child.
@@ -749,7 +499,6 @@ extension InwardMachineExtension<ChildInput, ChildOutput>
 
 extension OutwardMachineExtension<ChildInput, ChildOutput>
     on Machine<ChildInput, ChildOutput> {
-
   /// Creates a `Machine` instance with a specific behavior applied.
   /// Every output of the child machine is mapped into an array of new outputs
   /// and passed to the root.
@@ -764,7 +513,6 @@ extension OutwardMachineExtension<ChildInput, ChildOutput>
 
 extension RedirectMachineExtension<ChildInput, ChildOutput>
     on Machine<ChildInput, ChildOutput> {
-
   /// Creates a `Machine` instance with a specific behavior applied.
   /// Every output of the child machine is either passed further to the root or
   /// mapped into an array of new inputs and passed back to the child depending
@@ -822,7 +570,6 @@ extension RedirectWidgetMachineExtension<ChildInput, ChildOutput>
 
 extension MergeWithWidgetMachine<Input, Output>
     on WidgetMachine<Input, Output> {
-
   /// The same behavior as Machine.merge() where first argument is `WidgetMachine`
   WidgetMachine<Input, Output> mergeWith(Set<Machine<Input, Output>> machines) {
     return mergeWidgetMachine(main: this, secondary: machines);
@@ -912,5 +659,22 @@ class MachineConsumer<Input, Output> extends StatelessWidget {
         }
       },
     );
+  }
+}
+
+class RootMachine<Input, Output> {
+  StreamSubscription<Output>? _subscription;
+
+  final Machine<Input, Output> _child;
+
+  RootMachine(this._child);
+
+  void start() {
+    _subscription = _start(_child);
+  }
+
+  void stop() {
+    _subscription?.cancel();
+    _subscription = null;
   }
 }
