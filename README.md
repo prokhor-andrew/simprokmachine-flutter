@@ -149,23 +149,6 @@ To send input back to the child when output received - use ```redirect()```.
 });
 ```
 
-
-To dynamically create and connect machines when new input received - use ```ConnectableMachine```.
-
-```Dart
-... = ConnectableMachine<int, bool, BasicConnection<int, bool>>.create(
-    BasicConnection({
-        MyMachine1(), 
-        MyMachine2(),
-    }), 
-    (BasicConnection<int, bool> state, int input) { 
-        // Return 
-        // ConnectionType<int, bool, BasicConnection<int, bool>>.reduce(BasicConnection<int, bool>({})) - when new machines have to be connected.
-        // ConnectionType<int, bool, BasicConnection<int, bool>>.inward() - when existing machines have to receive input: Int
-    }
-); 
-```
-
 Check out the [sample](https://github.com/simprok-dev/simprokmachine-flutter/tree/main/sample) and the [wiki](https://github.com/simprok-dev/simprokmachine-flutter/wiki) for more information about API and how to use it.
 
 
