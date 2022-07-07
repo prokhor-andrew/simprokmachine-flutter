@@ -48,7 +48,7 @@ When we reopen the app we want to see the same number. So the state must be save
     - Input: int
     - Output: void
 - ```Calculator``` - incrementing the number.
-    - Input: VoidEvent
+    - Input: CalculatorInput
     - Output: int
 
 
@@ -83,7 +83,7 @@ They are used as intermediate layers.
 
 ## Step 3 - Code data types
 
-We only need ```VoidEvent``` and ```AppEvent``` as the rest is supported by Dart.
+We only need ```VoidEvent```, ```AppEvent``` and ```CalculatorInput``` as the rest is supported by Dart.
 
 
 ```Dart
@@ -104,6 +104,16 @@ class AppEvent {
         ? "did change state: $didChangeState"
         : "will change state";
   }
+}
+```
+
+```Dart
+class CalculatorInput {
+  final int? value;
+
+  CalculatorInput.increment() : value = null;
+
+  CalculatorInput.initialize(int val) : value = val;
 }
 ```
         
@@ -296,17 +306,28 @@ class StorageWriter extends ChildMachine<int, void> {
 
 
 ```Dart
-class Calculator extends ChildMachine<VoidEvent, int> {
-  int _counter;
-
-  Calculator(this._counter);
+class Calculator extends ChildMachine<CalculatorInput, int> {
+  int? _counter;
 
   @override
-  void process(VoidEvent? input, Handler<int> callback) {
+  void process(CalculatorInput? input, Handler<int> callback) {
     if (input != null) {
-      _counter += 1;
+      final int? value = input.value;
+      if (value != null) {
+        // initialize
+        _counter = value;
+      } else {
+        // increment
+        final int? unwrapped = _counter;
+        if (unwrapped != null) {
+          _counter = unwrapped + 1;
+        }
+      }
+      final int? unwrapped = _counter;
+      if (unwrapped != null) {
+        callback(unwrapped);
+      }
     }
-    callback(_counter);
   }
 }
 ```
@@ -324,19 +345,6 @@ class Domain extends ParentMachine<AppEvent, AppEvent> {
 
   @override
   Machine<AppEvent, AppEvent> child() {
-    Machine<DomainInput, DomainOutput> getCalculator(int value) {
-      return Calculator(value).outward((int output) {
-        return Ward<DomainOutput>.single(DomainOutput.fromCalculator(output));
-      }).inward((DomainInput input) {
-        final int? fromReader = input.fromReader;
-        if (fromReader != null) {
-          return Ward<VoidEvent>.ignore();
-        } else {
-          return Ward<VoidEvent>.single(VoidEvent());
-        }
-      });
-    }
-
     final Machine<DomainInput, DomainOutput> reader =
         StorageReader(_prefs).outward((int output) {
       return Ward<DomainOutput>.single(DomainOutput.fromReader(output));
@@ -344,23 +352,24 @@ class Domain extends ParentMachine<AppEvent, AppEvent> {
       return Ward<VoidEvent>.ignore();
     });
 
-    final Machine<DomainInput, DomainOutput> connectable =
-        ConnectableMachine.create<DomainInput, DomainOutput,
-            BasicConnection<DomainInput, DomainOutput>>(
-      BasicConnection<DomainInput, DomainOutput>({reader}),
-      (BasicConnection<DomainInput, DomainOutput> state, DomainInput input) {
-        final int? fromReader = input.fromReader;
-        if (fromReader != null) {
-          return ConnectionType<DomainInput, DomainOutput,
-                  BasicConnection<DomainInput, DomainOutput>>.reduce(
-              BasicConnection<DomainInput, DomainOutput>(
-                  {getCalculator(fromReader)}));
-        } else {
-          return ConnectionType<DomainInput, DomainOutput,
-              BasicConnection<DomainInput, DomainOutput>>.inward();
-        }
-      },
-    ).redirect((DomainOutput output) {
+    final Machine<DomainInput, DomainOutput> calculator =
+        Calculator().outward((int output) {
+      return Ward<DomainOutput>.single(DomainOutput.fromCalculator(output));
+    }).inward((DomainInput input) {
+      final int? fromReader = input.fromReader;
+      if (fromReader != null) {
+        return Ward<CalculatorInput>.single(
+          CalculatorInput.initialize(fromReader),
+        );
+      } else {
+        return Ward<CalculatorInput>.single(CalculatorInput.increment());
+      }
+    });
+
+    final Machine<DomainInput, DomainOutput> connectable = merge({
+      reader,
+      calculator,
+    }).redirect((DomainOutput output) {
       if (output.isFromReader) {
         return Direction<DomainInput>.back(
           Ward<DomainInput>.single(
@@ -414,8 +423,6 @@ class DomainOutput {
 ```
 
 [redirect()](https://github.com/simprok-dev/simprokmachine-flutter/wiki/Machine#redirect-operator) - depending on the output either passes it further to the root or sends an array of input data back to the child.
-[ConnectableMachine](https://github.com/simprok-dev/simprokmachine-flutter/wiki/ConnectableMachine) - dynamically creates and connects a set of machines.
-
 
 
 ## Step 10 - Update Display
@@ -494,7 +501,6 @@ Run the app and see how things are working.
 - ```outward()``` is an operator to map the child's output type into the parent's output type or ignore it.
 - ```redirect()``` is an operator to either pass the output further to the root or map it into an array of inputs and send back to the child.
 - ```merge()``` and ```mergeWidgetMachine()``` are operators to merge two or more machines of the same input and output types.
-- ```ConnectableMachine``` is a machine that is used to dynamically create and connect other machines.
 - ```runRootMachine<Input, Output>()``` is a function that starts the flow of the app.
 
 Refer to [wiki](https://github.com/simprok-dev/simprokmachine-flutter/wiki) for more information.
