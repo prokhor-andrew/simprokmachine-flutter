@@ -1,4 +1,3 @@
-## 1.1.2
+## 1.1.3
 
-Removed BasicMachine, BasicWidgetMachine, ProcessMachine into simproktools.
-Added RootMachine.
+MachineConsumer now accepts input and reduces its own state.

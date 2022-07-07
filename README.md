@@ -167,7 +167,7 @@ Add the line into pubspec.yaml:
 
 ```
 dependencies:
-    simprokmachine: ^1.1.2
+    simprokmachine: ^1.1.3
 ```
 
 Now in your Dart code, you can use:

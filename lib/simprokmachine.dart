@@ -349,6 +349,8 @@ class _RootWidgetState<Input, Output>
 // API
 
 // functions
+typedef Action = void Function();
+
 typedef Handler<T> = void Function(T);
 typedef BiHandler<T1, T2> = void Function(T1, T2);
 typedef TriHandler<T1, T2, T3> = void Function(T1, T2, T3);
@@ -356,6 +358,8 @@ typedef TriHandler<T1, T2, T3> = void Function(T1, T2, T3);
 typedef Mapper<I, O> = O Function(I);
 typedef BiMapper<T1, T2, R> = R Function(T1, T2);
 typedef TriMapper<T1, T2, T3, R> = R Function(T1, T2, T3);
+
+typedef QuaMapper<T1, T2, T3, T4, R> = R Function(T1, T2, T3, T4);
 
 typedef Supplier<T> = T Function();
 
@@ -631,20 +635,33 @@ void runRootMachine<Input, Output>(
 
 /// A Consumer from provider package that receives Input and may send Output
 /// via Handler<Output> callback.
-class MachineConsumer<Input, Output> extends StatelessWidget {
-  final Mapper<BuildContext, Widget> _initial;
-  final TriMapper<BuildContext, Input?, Handler<Output>, Widget> _builder;
+
+class MachineConsumer<S, Input, Output> extends StatefulWidget {
+  final Mapper<BuildContext, ConsumerResult<S>> _initial;
+  final QuaMapper<BuildContext, S, Input?, Handler<Output>, ConsumerResult<S>>
+      _builder;
 
   /// [initial] - a widget builder that provides UI before
   /// that first input is received.
   /// [builder] - a widget builder that processes UI every time input received.
-  const MachineConsumer({
+  MachineConsumer({
     Key? key,
-    required Mapper<BuildContext, Widget> initial,
-    required TriMapper<BuildContext, Input?, Handler<Output>, Widget> builder,
+    required Mapper<BuildContext, ConsumerResult<S>> initial,
+    required QuaMapper<BuildContext, S, Input?, Handler<Output>,
+            ConsumerResult<S>>
+        builder,
   })  : _initial = initial,
         _builder = builder,
         super(key: key);
+
+  @override
+  State<MachineConsumer<S, Input, Output>> createState() =>
+      _MachineConsumerState<S, Input, Output>();
+}
+
+class _MachineConsumerState<S, Input, Output>
+    extends State<MachineConsumer<S, Input, Output>> {
+  S? _state;
 
   @override
   Widget build(BuildContext context) {
@@ -652,14 +669,39 @@ class MachineConsumer<Input, Output> extends StatelessWidget {
       builder: (context, value, _) {
         if (value != null) {
           // normal
-          return _builder(context, value.input, value.callback);
+          return _handleConsumerResult(
+            widget._builder(context, _state!, value.input, value.callback),
+          );
         } else {
           // initial
-          return _initial(context);
+          return _handleConsumerResult(
+            widget._initial(context),
+          );
         }
       },
     );
   }
+
+  Widget _handleConsumerResult(ConsumerResult<S> result) {
+    final Action? action = result.action;
+    if (action != null) {
+      action();
+    }
+    _state = result.state;
+    return result.child;
+  }
+}
+
+class ConsumerResult<State> {
+  final State state;
+  final Widget child;
+  final Action? action;
+
+  ConsumerResult({
+    required this.state,
+    required this.child,
+    this.action,
+  });
 }
 
 class RootMachine<Input, Output> {
