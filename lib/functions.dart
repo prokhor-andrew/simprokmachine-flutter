@@ -1,4 +1,9 @@
-
+//
+//  functions.dart
+//  simprokmachine
+//
+//  Created by Andrey Prokhorenko on 16.12.2021.
+//  Copyright (c) 2022 simprok. All rights reserved.
 
 typedef ActionFunc = void Function();
 

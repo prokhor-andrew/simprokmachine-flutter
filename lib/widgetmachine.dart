@@ -1,3 +1,10 @@
+//
+//  widgetmachine.dart
+//  simprokmachine
+//
+//  Created by Andrey Prokhorenko on 16.12.2021.
+//  Copyright (c) 2022 simprok. All rights reserved.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:rxdart/rxdart.dart';
