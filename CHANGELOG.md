@@ -1,3 +1,4 @@
-## 1.1.3
+## 1.1.4
 
-MachineConsumer now accepts input and reduces its own state.
+Removed inward, outward, redirect, merge to simproktools. 
+Fixed bugs. 
