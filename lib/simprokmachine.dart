@@ -15,14 +15,6 @@ import 'functions.dart';
 
 // internal types
 
-class _MachineSetup<Input, Output> {
-  final Stream<Output> stream;
-  final Handler<Input> setter;
-  final ActionFunc close;
-
-  _MachineSetup(this.stream, this.setter, this.close);
-}
-
 class _Triple<T1, T2, T3> {
   final T1 first;
   final T2 second;
@@ -38,19 +30,19 @@ _Triple<StreamSubscription<Output>, Handler<Input>, ActionFunc>
   Handler<Output> callback,
 ) {
   final setup = machine._setup();
-  final stream = setup.stream;
-  final setter = setup.setter;
-  final close = setup.close;
+  final stream = setup.first;
+  final setter = setup.second;
+  final close = setup.third;
 
   return _Triple(stream.listen(callback), setter, close);
 }
 
-// machines
+// API
 
 /// A general class that describes a type that represents a machine object.
 /// Exists for implementation purposes, and must not be inherited from directly.
 abstract class Machine<Input, Output> {
-  _MachineSetup<Input, Output> _setup();
+  _Triple<Stream<Output>, Handler<Input>, ActionFunc> _setup();
 }
 
 /// An abstract class that describes a machine with a customizable handling of input,
@@ -64,7 +56,7 @@ abstract class ChildMachine<Input, Output> extends Machine<Input, Output> {
   void dispose();
 
   @override
-  _MachineSetup<Input, Output> _setup() {
+  _Triple<Stream<Output>, Handler<Input>, ActionFunc> _setup() {
     final PublishSubject<Input?> inputSubject = PublishSubject<Input?>();
     final PublishSubject<Output> outputSubject = PublishSubject<Output>();
 
@@ -87,7 +79,7 @@ abstract class ChildMachine<Input, Output> extends Machine<Input, Output> {
       outStream,
     ]);
 
-    return _MachineSetup(
+    return _Triple(
       merged,
       (Input input) => inputSubject.sink.add(input),
       () => dispose(),
@@ -102,7 +94,7 @@ abstract class ParentMachine<Input, Output> extends Machine<Input, Output> {
   Machine<Input, Output> child();
 
   @override
-  _MachineSetup<Input, Output> _setup() {
+  _Triple<Stream<Output>, Handler<Input>, ActionFunc> _setup() {
     return child()._setup();
   }
 }

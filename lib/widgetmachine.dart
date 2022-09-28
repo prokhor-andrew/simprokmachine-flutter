@@ -161,7 +161,14 @@ class ConsumerResult<State> {
   });
 }
 
-// Widget
+extension MapWidgetMachine<Input, Output> on WidgetMachine<Input, Output> {
+
+  WidgetMachine<RInput, ROutput> map<RInput, ROutput>(Mapper<Machine<Input, Output>, Machine<RInput, ROutput>> mapper) {
+    return _BasicWidgetMachine(_widget(), mapper(_machine()));
+  }
+}
+
+// Implementation
 
 class _RootWidget<Input, Output> extends StatefulWidget {
   final Widget _widget;
@@ -209,16 +216,6 @@ class _RootWidgetState<Input, Output>
   }
 }
 
-extension MapWidgetMachine<Input, Output> on WidgetMachine<Input, Output> {
-
-  WidgetMachine<RInput, ROutput> map<RInput, ROutput>(Mapper<Machine<Input, Output>, Machine<RInput, ROutput>> mapper) {
-    return _BasicWidgetMachine(_widget(), mapper(_machine()));
-  }
-}
-
-
-// widget machines
-
 class _ProcessItem<Input, Output> {
   final Input? input;
   final Handler<Output> callback;
@@ -228,7 +225,6 @@ class _ProcessItem<Input, Output> {
     required this.callback,
   });
 }
-
 
 class _BasicMachine<Input, Output> extends ChildMachine<Input, Output> {
   final BiHandler<Input?, Handler<Output>> _processor;
