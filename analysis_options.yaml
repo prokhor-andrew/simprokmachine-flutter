@@ -1,5 +1,5 @@
 include: package:lints/recommended.yaml
 
-linter:
-  rules:
-    - close_sinks: false
+#linter:
+#  rules:
+#    - close_sinks: false

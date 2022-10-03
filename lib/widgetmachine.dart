@@ -5,8 +5,9 @@
 //  Created by Andrey Prokhorenko on 16.12.2021.
 //  Copyright (c) 2022 simprok. All rights reserved.
 
+library simprokmachine;
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:simprokmachine/simprokmachine.dart';
 
@@ -24,7 +25,7 @@ abstract class WidgetMachine<Input, Output> {
 /// An abstract class that describes a machine connected to the flutter widget.
 abstract class ChildWidgetMachine<Input, Output>
     extends WidgetMachine<Input, Output> {
-  final PublishSubject<_ProcessItem<Input, Output>> _uiSubject =
+  final PublishSubject<ProcessItem<Input, Output>> _uiSubject =
   PublishSubject();
 
   /// A method that returns a Widget object that the machine connects to.
@@ -33,26 +34,16 @@ abstract class ChildWidgetMachine<Input, Output>
   Widget child();
 
   @override
-  Machine<Input, Output> _machine() {
-    return _BasicMachine(processor: (input, callback) {
-      _uiSubject.sink.add(_ProcessItem(
-        input: input,
-        callback: (output) => callback(output),
-      ));
-    }, dispose: () {
-      _uiSubject.close();
-    });
-  }
+  Machine<Input, Output> _machine() => _SubjectProduceMachine(_uiSubject);
 
   @override
-  Widget _widget() {
-    return StreamProvider<_ProcessItem<Input, Output>?>(
-      create: (_) => _uiSubject,
-      initialData: null,
-      child: child(),
-    );
-  }
+  Widget _widget() =>
+      _SubjectConsumerWidget(
+        child: child(),
+        stream: _uiSubject,
+      );
 }
+
 /// An abstract class that describes an intermediate widget machine that passes
 /// input from its parent to the child, and its output from the child to the parent.
 abstract class ParentWidgetMachine<Input, Output>
@@ -74,6 +65,14 @@ abstract class ParentWidgetMachine<Input, Output>
   }
 }
 
+/// An operator that allows to transform an internal machine in any way
+extension MapWidgetMachine<Input, Output> on WidgetMachine<Input, Output> {
+  WidgetMachine<RInput, ROutput> map<RInput, ROutput>(
+      Mapper<Machine<Input, Output>, Machine<RInput, ROutput>> mapper) {
+    return _BasicWidgetMachine(_widget(), mapper(_machine()));
+  }
+}
+
 // widgets
 
 /// Starts the application flow.
@@ -90,93 +89,13 @@ void runRootMachine<Input, Output>({
   );
 }
 
-/// A Consumer from provider package that receives Input and may send Output
-/// via Handler<Output> callback.
-
-class MachineConsumer<S, Input, Output> extends StatefulWidget {
-  final Mapper<BuildContext, ConsumerResult<S>> _initial;
-  final QuaMapper<BuildContext, S, Input?, Handler<Output>, ConsumerResult<S>>
-  _builder;
-
-  /// [initial] - a widget builder that provides UI before
-  /// that first input is received.
-  /// [builder] - a widget builder that processes UI every time input received.
-  MachineConsumer({
-    Key? key,
-    required Mapper<BuildContext, ConsumerResult<S>> initial,
-    required QuaMapper<BuildContext, S, Input?, Handler<Output>,
-        ConsumerResult<S>>
-    builder,
-  })  : _initial = initial,
-        _builder = builder,
-        super(key: key);
-
-  @override
-  State<MachineConsumer<S, Input, Output>> createState() =>
-      _MachineConsumerState<S, Input, Output>();
-}
-
-class _MachineConsumerState<S, Input, Output>
-    extends State<MachineConsumer<S, Input, Output>> {
-  S? _state;
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<_ProcessItem<Input, Output>?>(
-      builder: (context, value, _) {
-        if (value != null) {
-          // normal
-          return _handleConsumerResult(
-            widget._builder(context, _state!, value.input, value.callback),
-          );
-        } else {
-          // initial
-          return _handleConsumerResult(
-            widget._initial(context),
-          );
-        }
-      },
-    );
-  }
-
-  Widget _handleConsumerResult(ConsumerResult<S> result) {
-    final ActionFunc? action = result.action;
-    if (action != null) {
-      action();
-    }
-    _state = result.state;
-    return result.child;
-  }
-}
-
-class ConsumerResult<State> {
-  final State state;
-  final Widget child;
-  final ActionFunc? action;
-
-  ConsumerResult({
-    required this.state,
-    required this.child,
-    this.action,
-  });
-}
-
-extension MapWidgetMachine<Input, Output> on WidgetMachine<Input, Output> {
-
-  WidgetMachine<RInput, ROutput> map<RInput, ROutput>(Mapper<Machine<Input, Output>, Machine<RInput, ROutput>> mapper) {
-    return _BasicWidgetMachine(_widget(), mapper(_machine()));
-  }
-}
-
 // Implementation
-
 class _RootWidget<Input, Output> extends StatefulWidget {
   final Widget _widget;
   final Machine<Input, Output> _machine;
   final Handler<Output>? _callback;
 
-  const _RootWidget(
-      this._widget,
+  const _RootWidget(this._widget,
       this._machine,
       this._callback, {
         Key? key,
@@ -216,43 +135,59 @@ class _RootWidgetState<Input, Output>
   }
 }
 
-class _ProcessItem<Input, Output> {
+class ProcessItem<Input, Output> {
   final Input? input;
   final Handler<Output> callback;
 
-  _ProcessItem({
+  ProcessItem({
     required this.input,
     required this.callback,
   });
 }
 
-class _BasicMachine<Input, Output> extends ChildMachine<Input, Output> {
-  final BiHandler<Input?, Handler<Output>> _processor;
-  final ActionFunc _dispose;
+class _SubjectConsumerWidget<Input, Output> extends InheritedWidget {
+  final Stream<ProcessItem<Input, Output>>? stream;
 
-  _BasicMachine({
-    required BiHandler<Input?, Handler<Output>> processor,
-    required ActionFunc dispose,
-  })  : _processor = processor,
-        _dispose = dispose;
+  _SubjectConsumerWidget({
+    required Widget child,
+    required this.stream,
+  }) : super(child: child);
+
+  static Stream<ProcessItem<Input, Output>>? of<Input, Output>(
+      BuildContext context,) {
+    return context
+        .dependOnInheritedWidgetOfExactType<
+        _SubjectConsumerWidget<Input, Output>>()
+        ?.stream;
+  }
+
+  @override
+  bool updateShouldNotify(covariant InheritedWidget oldWidget) => false;
+}
+
+class _SubjectProduceMachine<Input, Output>
+    extends ChildMachine<Input, Output> {
+  final PublishSubject<ProcessItem<Input, Output>> pipe;
+
+  _SubjectProduceMachine(this.pipe);
 
   @override
   void process(Input? input, Handler<Output> callback) {
-    _processor(input, callback);
+    pipe.sink.add(ProcessItem(input: input, callback: callback));
   }
 
   @override
   void dispose() {
-    _dispose();
+    pipe.close();
   }
 }
 
-class _BasicWidgetMachine<Input, Output> extends ChildWidgetMachine<Input, Output> {
-
+class _BasicWidgetMachine<Input, Output>
+    extends ChildWidgetMachine<Input, Output> {
   final Machine<Input, Output> _m;
-  final Widget _child;
+  final Widget _c;
 
-  _BasicWidgetMachine(this._child, this._m);
+  _BasicWidgetMachine(this._c, this._m);
 
   @override
   Machine<Input, Output> _machine() {
@@ -261,6 +196,169 @@ class _BasicWidgetMachine<Input, Output> extends ChildWidgetMachine<Input, Outpu
 
   @override
   Widget child() {
-    return _child;
+    return _c;
   }
+}
+
+class ControllerOutput<Internal, External> {
+  final Internal? int;
+  final External? ext;
+
+  ControllerOutput.internal(Internal data)
+      : int = data,
+        ext = null;
+
+  ControllerOutput.external(External data)
+      : ext = data,
+        int = null;
+}
+
+class ControllerWidgetResult<State, Internal, External> {
+  final State state;
+  final List<ControllerOutput<Internal, External>> outputs;
+
+  ControllerWidgetResult(this.state, this.outputs);
+}
+
+class ControllerWidget<S, Event, Internal, External> extends StatefulWidget {
+  final Widget child;
+  final Supplier<S> initial;
+  final BiMapper<S, Event, ControllerWidgetResult<S, Internal, External>>
+  reducer;
+
+  const ControllerWidget({
+    Key? key,
+    required this.initial,
+    required this.reducer,
+    required this.child,
+  }) : super(key: key);
+
+  @override
+  State<ControllerWidget<S, Event, Internal, External>> createState() =>
+      _ControllerWidgetState<S, Event, Internal, External>();
+
+
+  static Stream<ProcessItem<Input, Output>>? of<Input, Output>(
+      BuildContext context) {
+    return _SubjectConsumerWidget.of<Input, Output>(context);
+  }
+}
+
+extension ControllerWidgetStream<Input, Output> on BuildContext {
+
+  Stream<ProcessItem<Input, Output>>? machine() =>
+      ControllerWidget.of<Input, Output>(this);
+}
+
+class _ControllerWidgetState<S, Event, Internal, External>
+    extends State<ControllerWidget<S, Event, Internal, External>> {
+  final PublishSubject<ProcessItem<Event, External>> _internalSubject =
+  PublishSubject();
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _internalSubject.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final _externalSubject = _SubjectConsumerWidget.of<Event, External>(
+      context,
+    );
+
+    final Stream<ProcessItem<Internal, Event>>? stream;
+
+    if (_externalSubject == null) {
+      stream = null;
+    } else {
+      stream = MergeStream([
+        _externalSubject,
+        _internalSubject,
+      ])
+          .scan<
+          _Triple<S,
+              Handler<External>,
+              List<ControllerOutput<Internal, External>>?>?>(
+            (acc, event, _) {
+          if (event.input == null) {
+            return _Triple(widget.initial(), event.callback, null);
+          } else {
+            final result = widget.reducer(acc!.first, event.input!);
+            final newState = result.state;
+            final outputs = result.outputs;
+
+            return _Triple(newState, acc.second, outputs);
+          }
+        },
+        null,
+      )
+          .map((event) => event!)
+          .doOnData((event) {
+        final callback = event.second;
+        final outputs = event.third;
+
+        if (outputs != null) {
+          for (final element in outputs) {
+            final ext = element.ext;
+            if (ext != null) {
+              callback(ext);
+            }
+          }
+        }
+      })
+          .asyncExpand(
+            (event) {
+          void callback(Event event) {
+            _internalSubject.sink.add(
+              ProcessItem(
+                input: event,
+                callback: (_) {},
+              ),
+            );
+          }
+
+          if (event.third == null) {
+            return Stream.value(
+              ProcessItem<Internal, Event>(
+                input: null,
+                callback: callback,
+              ),
+            );
+          } else {
+            return Stream.fromIterable(
+              event.third!.where((element) => element.int != null).map(
+                    (e) =>
+                    ProcessItem<Internal, Event>(
+                      input: e.int,
+                      callback: callback,
+                    ),
+              ),
+            );
+          }
+        },
+      );
+    }
+
+    return _SubjectConsumerWidget<Event, External>(
+      stream: null,
+      child: _SubjectConsumerWidget<Internal, Event>(
+        stream: stream,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _Triple<T1, T2, T3> {
+  final T1 first;
+  final T2 second;
+  final T3 third;
+
+  _Triple(this.first, this.second, this.third);
 }

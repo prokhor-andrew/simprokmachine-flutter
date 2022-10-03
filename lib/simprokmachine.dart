@@ -13,29 +13,6 @@ import 'package:rxdart/rxdart.dart';
 
 import 'functions.dart';
 
-// internal types
-
-class _Triple<T1, T2, T3> {
-  final T1 first;
-  final T2 second;
-  final T3 third;
-
-  _Triple(this.first, this.second, this.third);
-}
-
-// start method
-_Triple<StreamSubscription<Output>, Handler<Input>, ActionFunc>
-    _start<Input, Output>(
-  Machine<Input, Output> machine,
-  Handler<Output> callback,
-) {
-  final setup = machine._setup();
-  final stream = setup.first;
-  final setter = setup.second;
-  final close = setup.third;
-
-  return _Triple(stream.listen(callback), setter, close);
-}
 
 // API
 
@@ -44,6 +21,7 @@ _Triple<StreamSubscription<Output>, Handler<Input>, ActionFunc>
 abstract class Machine<Input, Output> {
   _Triple<Stream<Output>, Handler<Input>, ActionFunc> _setup();
 }
+
 
 /// An abstract class that describes a machine with a customizable handling of input,
 /// and emitting of output.
@@ -82,7 +60,11 @@ abstract class ChildMachine<Input, Output> extends Machine<Input, Output> {
     return _Triple(
       merged,
       (Input input) => inputSubject.sink.add(input),
-      () => dispose(),
+      () {
+        inputSubject.close();
+        outputSubject.close();
+        dispose();
+      },
     );
   }
 }
@@ -135,3 +117,29 @@ class RootMachine<Input, Output> {
     }
   }
 }
+
+
+// internal types
+
+class _Triple<T1, T2, T3> {
+  final T1 first;
+  final T2 second;
+  final T3 third;
+
+  _Triple(this.first, this.second, this.third);
+}
+
+// start method
+_Triple<StreamSubscription<Output>, Handler<Input>, ActionFunc>
+_start<Input, Output>(
+    Machine<Input, Output> machine,
+    Handler<Output> callback,
+    ) {
+  final setup = machine._setup();
+  final stream = setup.first;
+  final setter = setup.second;
+  final close = setup.third;
+
+  return _Triple(stream.listen(callback), setter, close);
+}
+

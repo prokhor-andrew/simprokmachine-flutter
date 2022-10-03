@@ -5,6 +5,8 @@
 //  Created by Andrey Prokhorenko on 16.12.2021.
 //  Copyright (c) 2022 simprok. All rights reserved.
 
+library simprokmachine;
+
 typedef ActionFunc = void Function();
 
 typedef Handler<T> = void Function(T);
