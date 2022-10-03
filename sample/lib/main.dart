@@ -20,29 +20,26 @@ class RootWidgetMachine extends ChildWidgetMachine<int, bool> {
           mainAxisSize: MainAxisSize.max,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Builder(
-              builder: (context) => Center(child: MachineConsumer<String, int, bool>(
-                initial: (context2) => ConsumerResult(state: "true", child: const Text("true"), action: () {
-                  ScaffoldMessenger.of(context2).showSnackBar(const SnackBar(content: Text("WOW")));
-                }),
-                builder: (context, state, input, callback) {
-                  if (state == "true") {
-                    return ConsumerResult(state: "true", child: const Text("true"));
-                  } else {
-                    return ConsumerResult(state: "false", child: const Text("false"));
-                  }
-                },
-              )),
+            ControllerWidget<String, int, double, bool>(
+              initial: () => "initial state",
+              reducer: (state, event) => ControllerWidgetResult(
+                "new state",
+                [],
+              ),
+              child: Builder(
+                builder: (context) => MaterialButton(
+                  onPressed: () {
+                    ControllerWidget.of<double, int>(context)?.forEach((element) {
+                      print("element");
+                    });
+                  },
+                  child: const Text("click me"),
+                ),
+              ),
             ),
-            MaterialButton(
-              onPressed: () {},
-              child: const Text("click me"),
-            )
           ],
         ),
       ),
     );
   }
 }
-
-

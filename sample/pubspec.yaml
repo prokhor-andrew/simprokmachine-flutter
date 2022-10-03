@@ -14,7 +14,7 @@ dependencies:
 
 #  rxdart: ^0.27.3
 #  provider: ^6.0.2
-  simprokmachine: ^1.1.4
+  simprokmachine: ^1.1.5
   shared_preferences: ^2.0.13
   cupertino_icons: ^1.0.2
 

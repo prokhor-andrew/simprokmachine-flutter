@@ -1,4 +1,3 @@
-## 1.1.5
+## 1.1.6
 
-Removed inward, outward, redirect, merge to simproktools. 
-Fixed bugs. 
+Fixed BuildContext extension for ControllerWidget's machine().

@@ -244,9 +244,9 @@ class ControllerWidget<S, Event, Internal, External> extends StatefulWidget {
   }
 }
 
-extension ControllerWidgetStream<Input, Output> on BuildContext {
+extension ControllerWidgetStream on BuildContext {
 
-  Stream<ProcessItem<Input, Output>>? machine() =>
+  Stream<ProcessItem<Input, Output>>? machine<Input, Output>() =>
       ControllerWidget.of<Input, Output>(this);
 }
 
